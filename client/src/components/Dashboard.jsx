@@ -26,7 +26,7 @@ function Dashboard() {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleNext = () => setStep((prev) => Math.min(prev + 1, 3)); // Change to 3
+  const handleNext = () => setStep((prev) => Math.min(prev + 1, 3));
   const handleBack = () => setStep((prev) => Math.max(prev - 1, 1));
 
   const handleSubmit = async () => {
@@ -50,8 +50,14 @@ function Dashboard() {
 
       const data = await response.json();
       console.log("Received trip plan:", data);
-      setTripPlan(data);
-      setStep(4); // Change to 4 to skip to trip plan display
+      
+      const tripPlanWithDestination = {
+        ...data,
+        destination: formData.destination
+      };
+
+      setTripPlan(tripPlanWithDestination);
+      setStep(4);
     } catch (error) {
       console.error("Error generating trip plan:", error);
       setError("Failed to generate trip plan. Please try again.");
@@ -65,31 +71,61 @@ function Dashboard() {
     setSaveError(null);
 
     try {
+      const token = localStorage.getItem("token");
+      console.log("Retrieved token:", token);
+
+      if (!token) {
+        setSaveError("Please login to save your trip.");
+        navigate("/login");
+        return;
+      }
+
       const tripData = {
         ...formData,
         ...tripPlan,
       };
 
       console.log("Sending trip data:", tripData);
+      
       const response = await fetch("http://localhost:3000/api/store-trip", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: localStorage.getItem("token"), // Add the JWT token
+          "Authorization": token
         },
         body: JSON.stringify(tripData),
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to store trip");
+      console.log("Response status:", response.status);
+
+      if (response.status === 401 || response.status === 403) {
+        localStorage.removeItem("token");
+        setSaveError("Session expired. Please login again.");
+        setTimeout(() => navigate("/login"), 1500);
+        return;
       }
 
-      const data = await response.json();
-      console.log("Trip stored successfully:", data);
-      setTimeout(() => navigate("/profile"), 1000);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to store trip");
+      }
+
+      const responseData = await response.json();
+      console.log("Trip stored successfully:", responseData);
+      
+      alert("Trip saved successfully!");
+      navigate("/profile");
+      
     } catch (error) {
       console.error("Error storing trip:", error);
-      setSaveError("Failed to store trip. Please try again.");
+      
+      if (error.message.includes("expired") || error.message.includes("invalid token")) {
+        localStorage.removeItem("token");
+        setSaveError("Session expired. Please login again.");
+        setTimeout(() => navigate("/login"), 1500);
+      } else {
+        setSaveError(error.message || "Failed to store trip. Please try again.");
+      }
     } finally {
       setIsSaving(false);
     }
@@ -226,12 +262,10 @@ function Dashboard() {
             </div>
           </div>
         );
-      // Remove case 4
     }
   };
 
   const handleStartOver = () => {
-    // Reset the step to 1 and clear form data, trip plan, etc.
     setStep(1);
     setFormData({
       travelStyle: "",
@@ -255,7 +289,7 @@ function Dashboard() {
           <div className="relative h-2 bg-gray-200 mb-6">
             <div
               className="absolute h-2 bg-blue-500 transition-all duration-300 ease-in-out"
-              style={{ width: `${(step / 4) * 100}%` }} // Adjust for 4 steps
+              style={{ width: `${(step / 4) * 100}%` }}
             ></div>
           </div>
           {isLoading ? (
@@ -267,7 +301,7 @@ function Dashboard() {
             <div className="text-center py-8">
               <p className="text-red-500 mb-4">{error}</p>
               <button
-                onClick={handleStartOver} // Use the new handleStartOver function
+                onClick={handleStartOver}
                 className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
               >
                 Start Over

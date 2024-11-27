@@ -9,7 +9,7 @@ import BudgetBreakdown from './TripPlanComponents/BudgetBreakdown';
 
 const TripPlan = ({ plan }) => {
   if (!plan) return null;
-
+  console.log(plan);
   return (
     <div className="min-h-screen flex">
       {/* Sidebar for YourPlan component */}
